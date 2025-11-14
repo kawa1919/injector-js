@@ -34,7 +34,19 @@
     });
 
     // 入力欄の直後にボタンを追加
-    productCodeInput.parentNode.insertBefore(btn, productCodeInput.nextSibling);
+    
+    // 親要素を flex にして横並びにする
+    var wrapper = productCodeInput.parentNode;
+    wrapper.style.display = 'flex';
+    wrapper.style.alignItems = 'center';
+
+    // 入力欄を伸ばす（自然な配置）
+    productCodeInput.style.flex = '1';
+
+    // ボタンを右側に付ける
+    btn.style.marginLeft = '8px';
+    wrapper.insertBefore(btn, productCodeInput.nextSibling);
+
 
     return true;
   }
@@ -204,3 +216,4 @@
   }
 
 })();
+
