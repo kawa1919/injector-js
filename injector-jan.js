@@ -1,20 +1,26 @@
 (function () {
   'use strict';
 
-  // ★ここをあなたのフォームに合わせたセレクタにする（今回はコレで正解）
+  // ★JANコードの入力欄（class="kb-lookup-search"）
   const PRODUCT_CODE_SELECTOR = 'input.kb-lookup-search';
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function init() {
+    console.log('Injector JAN init start');
+
     const productCodeInput = document.querySelector(PRODUCT_CODE_SELECTOR);
+    console.log('productCodeInput = ', productCodeInput);
+
     if (!productCodeInput) {
-      console.warn('商品コード（JANコード）フィールドが見つかりません。');
+      // 見つからないときは何もしない（ログだけ）
       return;
     }
 
-    // ボタンが既にあれば再追加しない
-    if (document.getElementById('inj-jan-scan-button')) return;
+    // 既にボタンがあるなら再追加しない
+    if (document.getElementById('inj-jan-scan-button')) {
+      return;
+    }
 
-    // JAN読み取りボタンを作成
+    // ボタン作成
     const btn = document.createElement('button');
     btn.id = 'inj-jan-scan-button';
     btn.type = 'button';
@@ -27,12 +33,21 @@
       openScanner(productCodeInput);
     });
 
-    // 商品コード入力の直後にボタンを挿入
+    // JANコード入力のすぐ後ろにボタンを追加
     productCodeInput.parentNode.insertBefore(btn, productCodeInput.nextSibling);
-  });
 
+    console.log('JAN読み取りボタンを追加しました');
+  }
 
-  // ==== ここから下は共通のスキャナ機能（Injector版） ====
+  // DOMの状態に応じて init を呼び分け
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // すでにDOMが出来上がっている場合はこちら
+    init();
+  }
+
+  // ==== ここから下はスキャナ処理（前に渡したものとほぼ同じ） ====
 
   function closeScanner(overlay, onDetected) {
     try {
@@ -42,9 +57,10 @@
       }
     } catch (e) { console.log(e); }
 
-    if (overlay?.parentNode) overlay.parentNode.removeChild(overlay);
+    if (overlay && overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+    }
   }
-
 
   function openScanner(productCodeInput) {
     if (!window.Quagga) {
@@ -55,6 +71,7 @@
     let lastCode = null;
 
     const overlay = document.createElement('div');
+    overlay.id = 'jan-scanner-overlay';
     overlay.style = `
       position:fixed; top:0; left:0; width:100%; height:100%;
       background:rgba(0,0,0,0.7); z-index:9999;
@@ -72,6 +89,7 @@
     title.style = 'text-align:center; margin-bottom:8px; font-size:14px;';
 
     const scannerView = document.createElement('div');
+    scannerView.id = 'jan-scanner-view';
     scannerView.style = `
       width:100%; height:60vh; max-height:360px; background:#000;
       position:relative; overflow:hidden;
@@ -97,7 +115,6 @@
     overlay.appendChild(container);
     document.body.appendChild(overlay);
 
-
     const onDetected = (result) => {
       if (!result?.codeResult?.code) return;
 
@@ -109,7 +126,6 @@
       document.getElementById('jan-result').textContent = code;
     };
 
-
     Quagga.init({
       inputStream: {
         type: 'LiveStream',
@@ -120,15 +136,14 @@
       locate: true
     }, function (err) {
       if (err) {
+        console.error(err);
         alert('カメラ起動に失敗しました。');
         closeScanner(overlay, onDetected);
         return;
       }
-
       Quagga.start();
       Quagga.onDetected(onDetected);
     });
-
 
     cancelBtn.onclick = () => closeScanner(overlay, onDetected);
 
@@ -137,10 +152,7 @@
         alert('まだ読み取れていません');
         return;
       }
-
-      // ★ Injectorの入力欄へ値を設定！
       productCodeInput.value = lastCode;
-
       closeScanner(overlay, onDetected);
     };
   }
