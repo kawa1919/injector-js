@@ -1,27 +1,27 @@
 (function () {
   'use strict';
 
-  // ★JANコードの入力欄（class="kb-lookup-search"）
-  const PRODUCT_CODE_SELECTOR = 'input.kb-lookup-search';
+  // JANコードの入力欄（class="kb-lookup-search"）
+  var PRODUCT_CODE_SELECTOR = 'input.kb-lookup-search';
 
-  function init() {
-    console.log('Injector JAN init start');
-
-    const productCodeInput = document.querySelector(PRODUCT_CODE_SELECTOR);
-    console.log('productCodeInput = ', productCodeInput);
-
+  // ---- ボタン設置処理（ポーリングで監視） ----
+  function attachButtonIfReady() {
+    var productCodeInput = document.querySelector(PRODUCT_CODE_SELECTOR);
     if (!productCodeInput) {
-      // 見つからないときは何もしない（ログだけ）
-      return;
+      // まだフォームが描画されていない
+      return false;
     }
 
-    // 既にボタンがあるなら再追加しない
+    // 既にボタンがあれば何もしない
     if (document.getElementById('inj-jan-scan-button')) {
-      return;
+      return true;
     }
+
+    // デバッグ用（開発ツールのコンソールで確認できます）
+    console.log('JANコード入力欄を発見、ボタンを追加します', productCodeInput);
 
     // ボタン作成
-    const btn = document.createElement('button');
+    var btn = document.createElement('button');
     btn.id = 'inj-jan-scan-button';
     btn.type = 'button';
     btn.textContent = 'JAN読み取り';
@@ -33,30 +33,37 @@
       openScanner(productCodeInput);
     });
 
-    // JANコード入力のすぐ後ろにボタンを追加
+    // 入力欄の直後にボタンを追加
     productCodeInput.parentNode.insertBefore(btn, productCodeInput.nextSibling);
 
-    console.log('JAN読み取りボタンを追加しました');
+    return true;
   }
 
-  // DOMの状態に応じて init を呼び分け
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    // すでにDOMが出来上がっている場合はこちら
-    init();
-  }
+  // ページ読み込み直後から 500ms ごとにチェック
+  var timerId = setInterval(function () {
+    var done = attachButtonIfReady();
+    if (done) {
+      clearInterval(timerId);
+    }
+  }, 500);
 
-  // ==== ここから下はスキャナ処理（前に渡したものとほぼ同じ） ====
+  // 一応、すぐにも一回試す
+  attachButtonIfReady();
+
+
+  // ---- ここから下はバーコードスキャナ処理 ----
 
   function closeScanner(overlay, onDetected) {
     try {
       if (window.Quagga) {
-        if (onDetected) Quagga.offDetected(onDetected);
+        if (onDetected) {
+          Quagga.offDetected(onDetected);
+        }
         Quagga.stop();
       }
-    } catch (e) { console.log(e); }
-
+    } catch (e) {
+      console.log(e);
+    }
     if (overlay && overlay.parentNode) {
       overlay.parentNode.removeChild(overlay);
     }
@@ -67,77 +74,114 @@
       alert('QuaggaJS が読み込まれていません。');
       return;
     }
+    if (!productCodeInput) {
+      alert('商品コード入力欄が見つかりません。');
+      return;
+    }
 
-    let lastCode = null;
+    var lastCode = null;
 
-    const overlay = document.createElement('div');
+    var overlay = document.createElement('div');
     overlay.id = 'jan-scanner-overlay';
-    overlay.style = `
-      position:fixed; top:0; left:0; width:100%; height:100%;
-      background:rgba(0,0,0,0.7); z-index:9999;
-      display:flex; flex-direction:column; justify-content:center; align-items:center; color:#fff;
-    `;
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.zIndex = '9999';
+    overlay.style.display = 'flex';
+    overlay.style.flexDirection = 'column';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    overlay.style.color = '#fff';
 
-    const container = document.createElement('div');
-    container.style = `
-      width:90%; max-width:480px; background:#222; padding:10px;
-      border-radius:8px; box-sizing:border-box;
-    `;
+    var container = document.createElement('div');
+    container.style.width = '90%';
+    container.style.maxWidth = '480px';
+    container.style.backgroundColor = '#222';
+    container.style.borderRadius = '8px';
+    container.style.padding = '10px';
+    container.style.boxSizing = 'border-box';
 
-    const title = document.createElement('div');
+    var title = document.createElement('div');
     title.textContent = 'JANコードをスキャン';
-    title.style = 'text-align:center; margin-bottom:8px; font-size:14px;';
+    title.style.textAlign = 'center';
+    title.style.marginBottom = '8px';
+    title.style.fontSize = '14px';
 
-    const scannerView = document.createElement('div');
+    var scannerView = document.createElement('div');
     scannerView.id = 'jan-scanner-view';
-    scannerView.style = `
-      width:100%; height:60vh; max-height:360px; background:#000;
-      position:relative; overflow:hidden;
-    `;
+    scannerView.style.width = '100%';
+    scannerView.style.height = '60vh';
+    scannerView.style.maxHeight = '360px';
+    scannerView.style.position = 'relative';
+    scannerView.style.overflow = 'hidden';
+    scannerView.style.backgroundColor = '#000';
 
-    const resultLine = document.createElement('div');
-    resultLine.style = 'margin-top:6px; font-size:13px;';
+    var resultLine = document.createElement('div');
+    resultLine.style.marginTop = '6px';
+    resultLine.style.fontSize = '13px';
     resultLine.innerHTML = '読み取り: <span id="jan-result">（未読取）</span>';
 
-    const buttonRow = document.createElement('div');
-    buttonRow.style = 'display:flex; justify-content:space-between; margin-top:10px;';
+    var buttonRow = document.createElement('div');
+    buttonRow.style.display = 'flex';
+    buttonRow.style.justifyContent = 'space-between';
+    buttonRow.style.marginTop = '10px';
 
-    const cancelBtn = document.createElement('button');
+    var cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'キャンセル';
-    cancelBtn.style = 'flex:1; margin-right:5px;';
+    cancelBtn.style.flex = '1';
+    cancelBtn.style.marginRight = '5px';
 
-    const okBtn = document.createElement('button');
+    var okBtn = document.createElement('button');
     okBtn.textContent = 'セット';
-    okBtn.style = 'flex:1; margin-left:5px;';
+    okBtn.style.flex = '1';
+    okBtn.style.marginLeft = '5px';
 
-    buttonRow.append(cancelBtn, okBtn);
-    container.append(title, scannerView, resultLine, buttonRow);
+    buttonRow.appendChild(cancelBtn);
+    buttonRow.appendChild(okBtn);
+
+    container.appendChild(title);
+    container.appendChild(scannerView);
+    container.appendChild(resultLine);
+    container.appendChild(buttonRow);
     overlay.appendChild(container);
     document.body.appendChild(overlay);
 
-    const onDetected = (result) => {
-      if (!result?.codeResult?.code) return;
+    var onDetected = function (result) {
+      if (!result || !result.codeResult || !result.codeResult.code) {
+        return;
+      }
+      var code = result.codeResult.code;
 
-      const code = result.codeResult.code;
-
-      if (!/^\d{8}$/.test(code) && !/^\d{13}$/.test(code)) return;
-
+      // JANコード（8桁 or 13桁）
+      if (!/^\d{8}$/.test(code) && !/^\d{13}$/.test(code)) {
+        return;
+      }
       lastCode = code;
-      document.getElementById('jan-result').textContent = code;
+      var resultSpan = document.getElementById('jan-result');
+      if (resultSpan) {
+        resultSpan.textContent = code;
+      }
     };
 
     Quagga.init({
       inputStream: {
         type: 'LiveStream',
         target: scannerView,
-        constraints: { facingMode: 'environment' }
+        constraints: {
+          facingMode: 'environment'
+        }
       },
-      decoder: { readers: ['ean_reader'] },
+      decoder: {
+        readers: ['ean_reader']
+      },
       locate: true
     }, function (err) {
       if (err) {
         console.error(err);
-        alert('カメラ起動に失敗しました。');
+        alert('カメラ起動に失敗しました。ブラウザのカメラ許可やHTTPS接続を確認してください。');
         closeScanner(overlay, onDetected);
         return;
       }
@@ -145,9 +189,11 @@
       Quagga.onDetected(onDetected);
     });
 
-    cancelBtn.onclick = () => closeScanner(overlay, onDetected);
+    cancelBtn.onclick = function () {
+      closeScanner(overlay, onDetected);
+    };
 
-    okBtn.onclick = () => {
+    okBtn.onclick = function () {
       if (!lastCode) {
         alert('まだ読み取れていません');
         return;
@@ -156,4 +202,5 @@
       closeScanner(overlay, onDetected);
     };
   }
+
 })();
